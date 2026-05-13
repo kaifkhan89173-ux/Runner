@@ -9,7 +9,6 @@
 body{background:#87CEEB;font-family:'Segoe UI',sans-serif;overflow:hidden;touch-action:none}
 canvas{display:block;width:100vw;height:100vh}
 
-/* HUD FIX: z-index 9999 aur top padding */
 #hud{position:fixed;top:env(safe-area-inset-top, 15px);left:0;right:0;display:none;pointer-events:none;z-index:9999}
 #hud-top{display:flex;justify-content:space-between;align-items:flex-start;padding:12px 16px;background:linear-gradient(180deg,rgba(0,0,0,.55) 0,transparent 100%)}
 #score{font-size:28px;font-weight:900;color:#fff;letter-spacing:1px}
@@ -18,19 +17,31 @@ canvas{display:block;width:100vw;height:100vh}
 #hearts{display:flex;gap:5px}
 .heart::before{content:'❤️';font-size:20px}
 .heart.dead::before{content:'🖤'}
-#start-screen,#over-screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,#0f2027,#203a43,#2c5364);z-index:20;padding:20px;overflow-y:auto}
+
+/* START & OVER SCREEN */
+#start-screen,#over-screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,rgba(15,32,39,0.85),rgba(32,58,67,0.85),rgba(44,83,100,0.85));z-index:20;padding:20px;overflow-y:auto;backdrop-filter:blur(3px);}
 #over-screen{display:none}
+
 .game-logo{font-size:48px;font-weight:900;color:#FF8C00;letter-spacing:2px;margin-bottom:4px}
-.game-sub{font-size:14px;color:#80b0c0;letter-spacing:4px;margin-bottom:24px}
+.game-sub{font-size:14px;color:#80b0c0;letter-spacing:4px;margin-bottom:20px}
 .runner-emoji{font-size:56px;margin-bottom:8px}
 .input-wrap{display:flex;align-items:center;background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.2);border-radius:12px;padding:0 14px;margin-bottom:14px;width:100%;max-width:320px}
 .input-wrap span{font-size:18px;margin-right:8px}
 .input-wrap input{background:none;border:none;outline:none;color:#fff;font-size:16px;padding:12px 0;flex:1;font-family:inherit}
 .input-wrap input::placeholder{color:rgba(255,255,255,.4)}
-.btn{width:100%;max-width:320px;padding:15px;border:none;border-radius:14px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:.5px;margin-bottom:10px}
+.btn{width:100%;max-width:320px;padding:15px;border:none;border-radius:14px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:.5px;margin-bottom:10px;transition:0.2s}
+.btn:active{transform:scale(0.96)}
 .btn-primary{background:linear-gradient(135deg,#FF8C00,#FF5733);color:#fff}
 .btn-secondary{background:rgba(255,255,255,.1);color:#fff;border:1.5px solid rgba(255,255,255,.25)}
-.best-tag{font-size:13px;color:#80d8ff;margin-bottom:18px;font-weight:600}
+.best-tag{font-size:13px;color:#80d8ff;margin-bottom:14px;font-weight:600}
+
+/* CHARACTER SELECT MENU CSS */
+.char-title{font-size:12px;color:#80d8ff;letter-spacing:2px;margin-bottom:8px;font-weight:bold;text-transform:uppercase}
+.char-grid{display:flex;gap:10px;margin-bottom:20px;overflow-x:auto;max-width:320px;padding:5px 0}
+.char-grid::-webkit-scrollbar{display:none} 
+.char-btn{flex:0 0 auto;background:rgba(255,255,255,0.1);border:2px solid rgba(255,255,255,0.2);border-radius:10px;padding:10px 18px;color:#fff;font-weight:bold;cursor:pointer;transition:0.2s;white-space:nowrap}
+.char-btn.active{background:#FF8C00;border-color:#fff;transform:scale(1.05)}
+
 .final-score-wrap{text-align:center;margin-bottom:20px}
 .fs-label{font-size:13px;color:#80b0c0;letter-spacing:3px;margin-bottom:4px}
 .fs-num{font-size:56px;font-weight:900;color:#FF8C00}
@@ -56,6 +67,7 @@ canvas{display:block;width:100vw;height:100vh}
 </head>
 <body>
 <canvas id="c"></canvas>
+
 <div id="hud">
   <div id="hud-top">
     <div><div id="score">0</div><div id="speed-bar">12 km/h</div></div>
@@ -63,13 +75,21 @@ canvas{display:block;width:100vw;height:100vh}
     <div id="coins">● 0</div>
   </div>
 </div>
+
 <div id="start-screen">
   <div class="runner-emoji">🏃</div>
   <div class="game-logo">City Rush 3D</div>
   <div class="game-sub">ENDLESS RUNNER</div>
   <div class="best-tag" id="best-start"></div>
+  
   <div class="input-wrap"><span>👤</span><input id="name-input" maxlength="16" placeholder="Enter your name…"/></div>
+
+  <!-- Character Selection Menu -->
+  <div class="char-title">Select Character</div>
+  <div class="char-grid" id="char-grid"></div>
+
   <button class="btn btn-primary" onclick="startGame()">▶ PLAY</button>
+  
   <div class="controls-hint">
     <div class="ch"><span>⬅➡</span><span>Lane</span></div>
     <div class="ch"><span>⬆</span><span>Jump</span></div>
@@ -78,6 +98,7 @@ canvas{display:block;width:100vw;height:100vh}
   </div>
   <div class="lb-box" id="lb-start"></div>
 </div>
+
 <div id="over-screen">
   <div class="over-title">GAME OVER</div>
   <div class="over-sub">Better luck next time!</div>
@@ -97,7 +118,6 @@ canvas{display:block;width:100vw;height:100vh}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<!-- GLTFLoader imported here -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 let audioCtx=null;
@@ -187,37 +207,74 @@ let nextSeed=TILE_COUNT*999+1337;
 const charGroup=new THREE.Group(),bodyScaleGrp=new THREE.Group();
 charGroup.add(bodyScaleGrp);scene.add(charGroup);
 
-// --- CHARACTER (GLTF MODEL) ---
+// --- MULTIPLE CHARACTER LOADER SYSTEM ---
 let mixer;
 charGroup.position.set(0, 0, 0);
 
+const characterFiles = [
+  { name: "Azri", file: "azri_running_animation.glb", scale: 1.5 },
+  { name: "Anime Hero", file: "Anime_character.glb", scale: 1.5 },   
+  { name: "Demon King", file: "demon_king_ani_runing.glb", scale: 1.5 },
+  { name: "Luoli", file: "luoli_run.glb", scale: 1.5 } 
+];
+
+let selectedCharIndex = 0;
+let loadedCharacters = new Array(characterFiles.length).fill(null);
 const loader = new THREE.GLTFLoader();
-loader.load('azri_running_animation.glb', function(gltf) {
-    const model = gltf.scene;
-    
-    // Scale badal sakte ho agar character bada ya chota lag raha ho
-    model.scale.set(1.5, 1.5, 1.5); 
-    
-    // Model ko aage dekhne ke liye rotate kiya
-    model.rotation.y = Math.PI; 
-    
-    model.traverse(function(node) {
-        if (node.isMesh) {
-            node.castShadow = true;
-            node.receiveShadow = true;
+
+// Load all characters
+characterFiles.forEach((charData, i) => {
+    loader.load(charData.file, function(gltf) {
+        const model = gltf.scene;
+        // Adjust scale globally, aap scale value uper characterFiles array me badal sakte hain
+        model.scale.set(charData.scale, charData.scale, charData.scale);
+        model.rotation.y = Math.PI;
+        model.traverse(function(node) {
+            if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }
+        });
+        
+        loadedCharacters[i] = { scene: model, animations: gltf.animations };
+        
+        if (i === selectedCharIndex) {
+            applyCharacter(i);
         }
+    }, undefined, function(error) {
+        console.error("Model load failed:", charData.file, error);
     });
+});
 
-    bodyScaleGrp.add(model);
+function renderCharMenu() {
+    const grid = document.getElementById("char-grid");
+    grid.innerHTML = "";
+    characterFiles.forEach((c, i) => {
+        grid.innerHTML += `<div class="char-btn ${i === selectedCharIndex ? 'active' : ''}" onclick="selectChar(${i})">${c.name}</div>`;
+    });
+}
 
-    if (gltf.animations && gltf.animations.length > 0) {
-        mixer = new THREE.AnimationMixer(model);
-        const action = mixer.clipAction(gltf.animations[0]); 
+window.selectChar = function(index) {
+    selectedCharIndex = index;
+    renderCharMenu(); 
+    applyCharacter(index); 
+};
+
+function applyCharacter(index) {
+    if (!loadedCharacters[index]) return; 
+    
+    while(bodyScaleGrp.children.length > 0) {
+        bodyScaleGrp.remove(bodyScaleGrp.children[0]);
+    }
+    
+    const char = loadedCharacters[index];
+    bodyScaleGrp.add(char.scene);
+    
+    if (char.animations && char.animations.length > 0) {
+        mixer = new THREE.AnimationMixer(char.scene);
+        const action = mixer.clipAction(char.animations[0]); 
         action.play();
     }
-}, undefined, function(error) {
-    console.error("GLB model load nahi hua. Check if file is in same folder & you're using a server:", error);
-});
+}
+renderCharMenu();
+// ---------------------------------------------
 
 
 const OBS_TYPES=["barrier","train","box","low_barrier"];
@@ -317,7 +374,7 @@ window.startGame=function(){
   dustParticles.length=0;
   for(let i=0;i<TILE_COUNT;i++){tileZs[i]=i*-TILE_LEN;tileMeshes[i].position.z=tileZs[i];}
   nextSeed=TILE_COUNT*999+1337;
-  charGroup.rotation.x = 0; // Death ke baad wapas sidha
+  charGroup.rotation.x = 0; 
   document.getElementById("start-screen").style.display="none";
   document.getElementById("over-screen").style.display="none";
   document.getElementById("hud").style.display="block";
@@ -359,13 +416,17 @@ function loop(now){
   requestAnimationFrame(loop);
   const delta=clamp((now-last)/1000,0,0.05);
   last=now;
+  
   if(state==="playing"){
     handleKeyInput();
     updateGame(delta);
     updateHUD();
   } else if (state === "dead") {
-    updateGame(delta); // Let the death animation run
+    updateGame(delta); 
+  } else if (state === "menu") {
+    if (mixer) mixer.update(delta);
   }
+
   camera.position.x=lerp(camera.position.x,0,delta*3);
   camera.position.y=lerp(camera.position.y,5.8,delta*6);
   camera.position.z=lerp(camera.position.z,9,delta*6);
@@ -394,23 +455,19 @@ function updateGame(dt){
   const tSY=playerAction==="slide"?0.5:1,tSX=playerAction==="slide"?1.35:1;scaleY=lerp(scaleY,tSY,dt*14);scaleX=lerp(scaleX,tSX,dt*14);charGroup.scale.set(scaleX,scaleY,1);
   const jumpStr=playerAction==="jump"?1+Math.abs(yVel)*0.012:1;bodyScaleY=lerp(bodyScaleY,jumpStr,dt*12);bodyScaleX=lerp(bodyScaleX,1/jumpStr,dt*12);bodyScaleGrp.scale.set(bodyScaleX,bodyScaleY,1);
   
-  // Character Master Position
   charGroup.position.set(charX,charY,0);
   charGroup.rotation.z=tiltZ*0.12;
   blinkTimer+=dt;
   charGroup.visible=isInvincible?Math.sin(blinkTimer*18)>0:true;
   
-  // GLTF Animation Update
-  if (mixer && state !== "menu") mixer.update(dt);
+  if (mixer) mixer.update(dt);
 
   if(playerAction==="run"){
       charGroup.rotation.x = lerp(charGroup.rotation.x, 0, dt*10); 
   }
   else if(playerAction==="jump"){
-      // Jump position handled by charY above
   }
   else if(playerAction==="dead"){
-      // Character fall backward on dead
       charGroup.rotation.x = lerp(charGroup.rotation.x, -Math.PI*0.5, dt*5);
   }
 
