@@ -2,139 +2,228 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
-<title>City Rush 3D - Down Anim Updated</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>City Rush 3D - New Slide Anim</title>
 <style>
-/* ... (Style same rahega jo pehle tha) ... */
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#87CEEB;font-family:'Segoe UI',sans-serif;overflow:hidden;touch-action:none}
 canvas{display:block;width:100vw;height:100vh}
-#hud{position:fixed;top:15px;left:0;right:0;display:none;pointer-events:none;z-index:9999}
-#hud-top{display:flex;justify-content:space-between;padding:12px 16px;text-shadow:1px 1px 3px #000;}
-#score{font-size:32px;font-weight:900;color:#fff}
-#start-screen,#over-screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,rgba(15,32,39,0.9),rgba(44,83,100,0.9));z-index:20;color:#fff}
-.btn{padding:16px 40px;border:none;border-radius:14px;font-size:18px;font-weight:900;cursor:pointer;background:#FF8C00;color:#fff;margin-top:20px}
+
+/* HUD Styling */
+#hud{position:fixed;top:env(safe-area-inset-top, 15px);left:0;right:0;display:none;pointer-events:none;z-index:9999}
+#hud-top{display:flex;justify-content:space-between;align-items:flex-start;padding:12px 16px;background:linear-gradient(180deg,rgba(0,0,0,.6) 0,transparent 100%);text-shadow: 1px 1px 3px rgba(0,0,0,0.8);}
+#score{font-size:32px;font-weight:900;color:#fff;letter-spacing:1px}
+#coins{font-size:20px;font-weight:800;color:#FFD700; background: rgba(0,0,0,0.3); padding: 4px 10px; border-radius: 20px;}
+#speed-bar{font-size:14px;color:#a0e0ff;font-weight:700; text-transform: uppercase; letter-spacing: 1px;}
+#hearts{display:flex;gap:5px; margin-top: 5px;}
+.heart::before{content:'❤️';font-size:22px;}
+.heart.dead::before{content:'🖤'; opacity: 0.5;}
+
+/* SCREENS */
+#start-screen,#over-screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,rgba(15,32,39,0.9),rgba(44,83,100,0.9));z-index:20;padding:20px;backdrop-filter:blur(5px);color:#fff;}
+#over-screen{display:none} 
+.game-logo{font-size:52px;font-weight:900;color:#FF8C00;margin-bottom:4px;}
+.btn{width:100%;max-width:320px;padding:16px;border:none;border-radius:14px;font-size:18px;font-weight:900;cursor:pointer;margin-bottom:10px;text-transform: uppercase;}
+.btn-primary{background:linear-gradient(135deg,#FF8C00,#FF5733);color:#fff;}
+.best-tag{font-size:14px;color:#80d8ff;margin-bottom:16px;font-weight:800;}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="hud"><div id="hud-top"><div id="score">0</div><div id="coins">● 0</div></div></div>
+
+<div id="hud">
+  <div id="hud-top">
+    <div><div id="score">0</div><div id="speed-bar">14 km/h</div></div>
+    <div id="hearts"></div>
+    <div id="coins">● 0</div>
+  </div>
+</div>
 
 <div id="start-screen">
-  <h1>CITY RUSH 3D</h1>
-  <button class="btn" onclick="startGame()">▶ PLAY NOW</button>
+  <div class="game-logo">CITY RUSH</div>
+  <div class="best-tag">TAP TO START</div>
+  <button class="btn btn-primary" onclick="startGame()">▶ PLAY NOW</button>
+</div>
+
+<div id="over-screen">
+  <h1 style="color:#ff4444; font-size:48px">WASTED</h1>
+  <div id="final-score" style="font-size:32px; margin:20px 0">0</div>
+  <button class="btn btn-primary" onclick="restartGame()">↩ TRY AGAIN</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-
 <script>
-// --- CORE SETUP ---
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({canvas: document.getElementById('c'), antialias: true});
-renderer.setSize(window.innerWidth, window.innerHeight);
+// --- GAME SETTINGS ---
+const LANE_X=[-2.2,0,2.2];
+const TILE_LEN=30, TILE_COUNT=7, SPAWN_Z=-50, DESPAWN_Z=10, CHAR_Z=0;
+let state="menu", score=0, coins=0, lives=3, speed=14;
+let targetLane=0, charX=0, charY=0, yVel=0, playerAction="run";
+let isInvincible=false, slideTimer=0, wasJump=false, wasSlide=false;
 
-// Lighting
-const light = new THREE.DirectionalLight(0xffffff, 1);
-light.position.set(5, 10, 5);
-scene.add(light);
-scene.add(new THREE.AmbientLight(0x404040));
+// --- THREE.JS SETUP ---
+const scene=new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x87CEEB, 0.02);
+const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,250);
+camera.position.set(0, 5, 9);
+const renderer=new THREE.WebGLRenderer({canvas:document.getElementById("c"), antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
 
-// --- PLAYER & ANIMATION SYSTEM ---
-let mixer, activeAction, charActions = {};
-const charGroup = new THREE.Group();
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const sun=new THREE.DirectionalLight(0xffffff, 1);
+sun.position.set(10, 20, 10);
+scene.add(sun);
+
+// --- CHARACTER SYSTEM ---
+const charGroup=new THREE.Group();
 scene.add(charGroup);
+let mixer, activeAction, charActions={};
 
-let playerAction = "run";
-let slideTimer = 0;
+// NEW FILE IS SET HERE
+const currentHeroFile = "running_slide (1).glb"; 
+const heroScale = 1.5;
 
-// Model Load karne ka function (Placeholder path use kiya hai)
-const loader = new THREE.GLTFLoader();
-loader.load('azri_running_animation.glb', (gltf) => {
-    const model = gltf.scene;
-    charGroup.add(model);
-    
-    mixer = new THREE.AnimationMixer(model);
-    gltf.animations.forEach(clip => {
-        let name = clip.name.toLowerCase();
-        if(name.includes("run")) charActions.run = mixer.clipAction(clip);
-        if(name.includes("jump")) charActions.jump = mixer.clipAction(clip);
-        // "Down" ya "Slide" animation check
-        if(name.includes("slide") || name.includes("down") || name.includes("roll")) {
-            charActions.slide = mixer.clipAction(clip);
-        }
+function loadHero() {
+    const loader = new THREE.GLTFLoader();
+    loader.load(currentHeroFile, (gltf) => {
+        while(charGroup.children.length > 0) charGroup.remove(charGroup.children[0]);
+        const model = gltf.scene;
+        model.scale.set(heroScale, heroScale, heroScale);
+        model.rotation.y = Math.PI;
+        charGroup.add(model);
+
+        mixer = new THREE.AnimationMixer(model);
+        charActions = {};
+        gltf.animations.forEach(clip => {
+            let n = clip.name.toLowerCase();
+            // Map animation names from the GLB file
+            if(n.includes("run") || n.includes("walk")) charActions.run = mixer.clipAction(clip);
+            if(n.includes("jump")) charActions.jump = mixer.clipAction(clip);
+            if(n.includes("slide") || n.includes("down")) charActions.slide = mixer.clipAction(clip);
+        });
+
+        // Set default animation if 'run' isn't explicitly found
+        if(!charActions.run && gltf.animations[0]) charActions.run = mixer.clipAction(gltf.animations[0]);
+        activeAction = charActions.run;
+        if(activeAction) activeAction.play();
     });
-    
-    activeAction = charActions.run;
-    if(activeAction) activeAction.play();
+}
+
+function switchAnim(name) {
+    if(!charActions[name] || activeAction === charActions[name]) return;
+    const prev = activeAction;
+    activeAction = charActions[name];
+    activeAction.reset().fadeIn(0.2).play();
+    prev.fadeOut(0.2);
+}
+
+// Initial Load
+loadHero();
+
+// --- WORLD GENERATION (Simplified Floor) ---
+function box(w,h,d,c){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshLambertMaterial({color:c}));}
+const road=box(7.5, 0.1, 500, 0x333333);
+road.position.z = -200;
+scene.add(road);
+
+// --- INPUTS ---
+window.addEventListener("keydown", e => {
+    if(state!=="playing") return;
+    if(e.code==="ArrowLeft") targetLane=Math.max(-1, targetLane-1);
+    if(e.code==="ArrowRight") targetLane=Math.min(1, targetLane+1);
+    if(e.code==="ArrowUp" && playerAction==="run") playerAction="jump";
+    if(e.code==="ArrowDown" && playerAction==="run") playerAction="slide";
 });
 
-function switchAnimation(newAnim) {
-    if(!charActions[newAnim] || activeAction === charActions[newAnim]) return;
-    let prevAction = activeAction;
-    activeAction = charActions[newAnim];
-    activeAction.reset().fadeIn(0.2).play();
-    prevAction.fadeOut(0.2);
-}
+// Touch Inputs
+let touchStartX = 0;
+let touchStartY = 0;
+window.addEventListener("touchstart", e => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+});
+window.addEventListener("touchend", e => {
+    if(state!=="playing") return;
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    const dy = e.changedTouches[0].clientY - touchStartY;
+    if(Math.abs(dx) > Math.abs(dy)) {
+        if(dx > 30) targetLane=Math.min(1, targetLane+1);
+        else if(dx < -30) targetLane=Math.max(-1, targetLane-1);
+    } else {
+        if(dy < -30 && playerAction==="run") playerAction="jump";
+        else if(dy > 30 && playerAction==="run") playerAction="slide";
+    }
+});
 
 // --- GAME LOOP ---
-function update(dt) {
+let lastT = performance.now();
+function loop(now) {
+    requestAnimationFrame(loop);
+    const dt = Math.min((now - lastT) / 1000, 0.05);
+    lastT = now;
+
+    if(state==="playing") {
+        updateGame(dt);
+        if(mixer) mixer.update(dt);
+    }
+    
+    // Smooth Camera
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, charX * 0.5, dt * 5);
+    camera.lookAt(charX, 1, -5);
+    
+    renderer.render(scene, camera);
+}
+
+function updateGame(dt) {
+    score += Math.floor(speed * dt);
+    document.getElementById("score").textContent = score;
+
+    // Movement
+    const tX = LANE_X[targetLane+1];
+    charX += (tX - charX) * dt * 15;
+
+    // Jump logic
+    if(playerAction === "jump") {
+        if(!wasJump) { yVel = 12; wasJump = true; switchAnim("jump"); }
+        yVel -= 30 * dt;
+        charY += yVel * dt;
+        if(charY <= 0) { charY = 0; playerAction = "run"; wasJump = false; switchAnim("run"); }
+    }
+
+    // SLIDE LOGIC (Linked to new GLB animation)
     if(playerAction === "slide") {
+        if(!wasSlide) { 
+            slideTimer = 0; 
+            wasSlide = true; 
+            switchAnim("slide"); 
+        }
         slideTimer += dt;
         
-        // DOWN ANIM LOGIC:
-        // 1. Agar model mein animation hai toh wo chalega
-        if(charActions.slide) {
-            switchAnimation("slide");
-        } else {
-            // 2. Agar animation nahi hai, toh character ko "Squash" kar do (Scale down)
-            charGroup.scale.y = THREE.MathUtils.lerp(charGroup.scale.y, 0.5, dt * 10);
-            charGroup.position.y = -0.5; // Thoda niche shift
+        // Slide duration (adjust based on your glb clip length)
+        // If the animation is longer or shorter than 0.8s, change this value.
+        if(slideTimer > 0.8) { 
+            playerAction = "run"; 
+            wasSlide = false; 
+            switchAnim("run"); 
         }
-
-        // 0.7 seconds baad wapas khada ho jaye
-        if(slideTimer > 0.7) {
-            playerAction = "run";
-            slideTimer = 0;
-            switchAnimation("run");
-        }
-    } else {
-        // Normal state mein wapas scale 1 kar do
-        charGroup.scale.y = THREE.MathUtils.lerp(charGroup.scale.y, 1, dt * 10);
-        charGroup.position.y = 0;
     }
 
-    if(mixer) mixer.update(dt);
+    charGroup.position.set(charX, charY, 0);
 }
 
-// Input Detection
-window.addEventListener("keydown", (e) => {
-    if(e.code === "ArrowDown" || e.code === "KeyS") {
-        if(playerAction === "run") {
-            playerAction = "slide";
-            slideTimer = 0;
-        }
-    }
-});
-
-// Start Game
 window.startGame = () => {
-    document.getElementById('start-screen').style.display = 'none';
-    document.getElementById('hud').style.display = 'block';
-    animate();
+    state="playing";
+    score=0;
+    document.getElementById("start-screen").style.display="none";
+    document.getElementById("hud").style.display="block";
 };
 
-let lastTime = 0;
-function animate(now = 0) {
-    const dt = (now - lastTime) / 1000;
-    lastTime = now;
-    update(dt);
-    renderer.render(scene, camera);
-    requestAnimationFrame(animate);
+function restartGame() {
+    location.reload();
 }
-camera.position.set(0, 3, 6);
-camera.lookAt(0, 1, 0);
+
+loop();
 </script>
 </body>
 </html>
