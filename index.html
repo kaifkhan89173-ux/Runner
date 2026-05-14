@@ -91,7 +91,6 @@ canvas{display:block;width:100vw;height:100vh}
   
   <div class="input-wrap"><span>👤</span><input id="name-input" maxlength="16" placeholder="Enter your name…"/></div>
 
-  <!-- Character Selection Menu -->
   <div class="char-title">Select Hero</div>
   <div class="char-grid" id="char-grid"></div>
 
@@ -321,7 +320,11 @@ characterFiles.forEach((charData, i) => {
         model.scale.set(charData.scale, charData.scale, charData.scale);
         model.rotation.y = Math.PI;
         model.traverse(function(node) {
-            if (node.isMesh) { node.castShadow = true; node.receiveShadow = true; }
+            if (node.isMesh || node.isSkinnedMesh) { 
+                node.castShadow = true; 
+                node.receiveShadow = true; 
+                node.frustumCulled = false; 
+            }
         });
         
         loadedCharacters[i] = { scene: model, animations: gltf.animations };
@@ -364,9 +367,9 @@ function applyCharacter(index) {
         // Smart animation finder (Run, Jump, Slide)
         char.animations.forEach(clip => {
             let n = clip.name.toLowerCase();
-            if(n.includes("run") || n.includes("walk") || n.includes("dash")) charActions.run = mixer.clipAction(clip);
-            if(n.includes("jump") || n.includes("up")) charActions.jump = mixer.clipAction(clip);
-            if(n.includes("slide") || n.includes("down") || n.includes("roll") || n.includes("duck")) charActions.slide = mixer.clipAction(clip);
+            if(n.includes("run") || n.includes("walk") || n.includes("dash") || n.includes("mixamo") || n.includes("armature")) charActions.run = mixer.clipAction(clip);
+            else if(n.includes("jump") || n.includes("up")) charActions.jump = mixer.clipAction(clip);
+            else if(n.includes("slide") || n.includes("down") || n.includes("roll") || n.includes("duck")) charActions.slide = mixer.clipAction(clip);
         });
         
         // Agar run nahi mila to jo pehla animation hai usey run maan lo
@@ -382,11 +385,13 @@ function applyCharacter(index) {
 
 // Animations smoothly change karne ka function
 function switchAnimation(animName) {
-    if(!mixer || !charActions[animName] || activeAction === charActions[animName]) return;
+    if(!mixer || !charActions || !charActions[animName] || activeAction === charActions[animName]) return;
     let prevAction = activeAction;
     activeAction = charActions[animName];
     activeAction.reset().play();
-    prevAction.crossFadeTo(activeAction, 0.2, true);
+    if(prevAction) {
+        prevAction.crossFadeTo(activeAction, 0.2, true);
+    }
 }
 
 renderCharMenu();
@@ -725,8 +730,15 @@ function updateGame(dt){
   // Smooth rotation aur squishing apply karo
   charGroup.rotation.x = lerp(charGroup.rotation.x, targetRotX, dt * 10);
   charGroup.scale.y = lerp(charGroup.scale.y, targetScaleY, dt * 15); // Height kam/zyada karne ke liye
-  charGroup.position.set(charX, charY, 0); 
-  charGroup.rotation.z = tiltZ * 0.15;
+  
+  if (!mixer && state === "playing") {
+      charGroup.position.set(charX, charY + Math.abs(Math.sin(performance.now() * 0.015)) * 0.2, 0);
+      charGroup.rotation.z = tiltZ * 0.15 + Math.sin(performance.now() * 0.01) * 0.05;
+  } else {
+      charGroup.position.set(charX, charY, 0); 
+      charGroup.rotation.z = tiltZ * 0.15;
+  }
+
   blinkTimer += dt;
   charGroup.visible = isInvincible ? Math.sin(blinkTimer * 20) > 0 : true;
 
