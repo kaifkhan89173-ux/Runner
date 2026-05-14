@@ -21,7 +21,7 @@ canvas{display:block;width:100vw;height:100vh}
 
 /* START & OVER SCREEN */
 #start-screen,#over-screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(160deg,rgba(15,32,39,0.9),rgba(32,58,67,0.9),rgba(44,83,100,0.9));z-index:20;padding:20px;overflow-y:auto;backdrop-filter:blur(5px);}
-#over-screen{display:none}
+#over-screen{display:none} /* Default hidden */
 
 .game-logo{font-size:52px;font-weight:900;color:#FF8C00;letter-spacing:2px;margin-bottom:4px; text-shadow: 0 4px 10px rgba(255, 140, 0, 0.4);}
 .game-sub{font-size:15px;color:#80b0c0;letter-spacing:5px;margin-bottom:20px; text-transform: uppercase; font-weight: bold;}
@@ -107,7 +107,7 @@ canvas{display:block;width:100vw;height:100vh}
 
 <div id="over-screen">
   <div class="over-title">WASTED</div>
-  <div class="over-sub">You hit an obstacle!</div>
+  <div class="over-sub">You ran out of lives!</div>
   <div class="final-score-wrap">
     <div class="fs-label">FINAL SCORE</div>
     <div class="fs-num" id="final-score">0</div>
@@ -152,18 +152,16 @@ try {
 let targetLane=0,currentLane=0,playerAction="run",isInvincible=false;
 let charX=0,charY=0,yVel=0,tiltZ=0;
 let slideTimer=0,animT=0,blinkTimer=0;
-let scaleY=1,scaleX=1,bodyScaleY=1,bodyScaleX=1;
 let wasJump=false,wasSlide=false;
 
 // --- 3D SCENE SETUP ---
 const canvas=document.getElementById("c");
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true}); // Antialias ON for pro look
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true}); 
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled=true;
-renderer.shadowMap.type=THREE.PCFSoftShadowMap; // Soft shadows for better visuals
+renderer.shadowMap.type=THREE.PCFSoftShadowMap; 
 const scene=new THREE.Scene();
 
-// Advanced Fog
 scene.fog = new THREE.FogExp2(0x87CEEB, 0.022);
 
 const camera=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,0.1,250);
@@ -182,7 +180,7 @@ scene.add(new THREE.AmbientLight(0xb3cde0, 0.6));
 const dirLight=new THREE.DirectionalLight(0xfff0dd, 1.2);
 dirLight.position.set(10, 20, 10);
 dirLight.castShadow=true;
-dirLight.shadow.mapSize.set(1024, 1024); // High res shadows
+dirLight.shadow.mapSize.set(1024, 1024); 
 dirLight.shadow.camera.near=0.5; dirLight.shadow.camera.far=60;
 dirLight.shadow.camera.left=-12; dirLight.shadow.camera.right=12;
 dirLight.shadow.camera.top=12; dirLight.shadow.camera.bottom=-12;
@@ -197,7 +195,7 @@ function cylinder(rT,rB,h,seg,color){const m=new THREE.Mesh(new THREE.CylinderGe
 function lerp(a,b,t){return a+(b-a)*t;}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 
-// --- PROCEDURAL TEXTURES (CODE GENERATED) ---
+// --- PROCEDURAL TEXTURES ---
 function createRoadTex() {
   const c = document.createElement('canvas'); c.width = 512; c.height = 512;
   const ctx = c.getContext('2d');
@@ -298,8 +296,8 @@ for(let i=0;i<TILE_COUNT;i++){const seed=i*999+1337;const m=makeTileMesh(seed);m
 let nextSeed=TILE_COUNT*999+1337;
 
 // --- CHARACTER & SMART ANIMATION SYSTEM ---
-const charGroup=new THREE.Group(),bodyScaleGrp=new THREE.Group();
-charGroup.add(bodyScaleGrp);scene.add(charGroup);
+const charGroup=new THREE.Group();
+scene.add(charGroup);
 charGroup.position.set(0, 0, 0);
 
 let mixer;
@@ -348,17 +346,18 @@ window.selectChar = function(index) {
 function applyCharacter(index) {
     if (!loadedCharacters[index]) return; 
     
-    while(bodyScaleGrp.children.length > 0) {
-        bodyScaleGrp.remove(bodyScaleGrp.children[0]);
+    // पुराना मॉडल हटाओ
+    while(charGroup.children.length > 0) {
+        charGroup.remove(charGroup.children[0]);
     }
     
     const char = loadedCharacters[index];
-    bodyScaleGrp.add(char.scene);
+    charGroup.add(char.scene);
     
     if (char.animations && char.animations.length > 0) {
         mixer = new THREE.AnimationMixer(char.scene);
         
-        // SMART RUN DETECTOR
+        // 🛠️ FIX: भागने वाली (Run) एनिमेशन ढूंढने का स्मार्ट लॉजिक
         let runClip = null;
         for(let i = 0; i < char.animations.length; i++) {
             let n = char.animations[i].name.toLowerCase();
@@ -503,7 +502,7 @@ window.saveScoreBtn=function(){
 };
 
 function showMenu(){
-    document.getElementById("start-screen").style.display="";
+    document.getElementById("start-screen").style.display="flex"; // 🛠️ FIX: style="flex" कर दिया है
     document.getElementById("over-screen").style.display="none";
     document.getElementById("hud").style.display="none";
     document.getElementById("name-input").value=playerName;
@@ -513,7 +512,7 @@ function showMenu(){
 
 function showGameOver(){
   document.getElementById("hud").style.display="none";
-  document.getElementById("over-screen").style.display="";
+  document.getElementById("over-screen").style.display="flex"; // 🛠️ FIX: style="flex" कर दिया है
   document.getElementById("final-score").textContent=score.toLocaleString();
   document.getElementById("final-coins").textContent="● "+coins;
   document.getElementById("best-over").textContent="BEST: "+bestScore.toLocaleString();
@@ -528,7 +527,7 @@ window.startGame=function(){
   try{localStorage.setItem("crName",playerName);}catch(e){}
   state="playing"; score=0; coins=0; lives=3; speed=14; targetLane=0; currentLane=0;
   playerAction="run"; isInvincible=false; charX=0; charY=0; yVel=0; tiltZ=0;
-  slideTimer=0; animT=0; blinkTimer=0; scaleY=1; scaleX=1; bodyScaleY=1; bodyScaleX=1;
+  slideTimer=0; animT=0; blinkTimer=0; 
   wasJump=false; wasSlide=false; spawnTimerObs=0; spawnTimerCoins=0;
   
   obsPool.forEach(o=>{o.active=false;o.grp.position.y=-999;});
@@ -544,13 +543,19 @@ window.startGame=function(){
   document.getElementById("hud").style.display="block";
 };
 
-window.restartGame=function(){document.getElementById("over-screen").style.display="none";startGame();};
+window.restartGame=function(){
+    document.getElementById("over-screen").style.display="none";
+    startGame();
+};
 
 function die(){
   state="dead";
-  setTimeout(() => { try { if(score>bestScore){ bestScore=score; localStorage.setItem("crBest",bestScore); } } catch(e) {} }, 50); 
+  if (score > bestScore) {
+      bestScore = score;
+      try { localStorage.setItem("crBest", bestScore); } catch(e) {}
+  }
   playGameOver(); 
-  setTimeout(showGameOver, 1500); 
+  setTimeout(showGameOver, 1500); // 🛠️ FIX: 1.5 सेकंड बाद पक्का स्क्रीन आएगी
 }
 
 function loseLife(){
@@ -572,18 +577,18 @@ function loop(now){
   const delta=clamp((now-last)/1000, 0, 0.05);
   last=now;
   
+  // 🛠️ FIX: एनिमेशन मिक्सर हमेशा अपडेट होगा (रुकने का चांस नहीं)
+  if (mixer) mixer.update(delta);
+
   if(state==="playing" || state==="dead"){
     if(state==="playing") handleKeyInput();
     updateGame(delta);
     if(state==="playing") updateHUD();
-  } else if (state === "menu") {
-    if (mixer) mixer.update(delta);
   }
 
-  // Dynamic Camera (Speed ke hisaab se peeche jayega)
   const targetCamZ = state==="playing" ? 9 + (speed-14)*0.1 : 9;
   camera.position.x = lerp(camera.position.x, charX*0.3, delta*3);
-  camera.position.y = lerp(camera.position.y, 5.5 + charY*0.2, delta*6);
+  camera.position.y = lerp(camera.position.y, 5.5 + Math.max(0, charY*0.2), delta*6);
   camera.position.z = lerp(camera.position.z, targetCamZ, delta*4);
   camera.lookAt(charX*0.1, 1.5, -5);
   
@@ -592,7 +597,6 @@ function loop(now){
 
 function updateGame(dt){
   
-  // 1. SMOOTH BRAKE PHYSICS
   if(state === "playing") {
       if(speed < 32) speed += dt * 0.45;
       score += Math.floor(speed * dt * 2.5);
@@ -669,36 +673,27 @@ function updateGame(dt){
       if(charY <= 0){ charY = 0; yVel = 0; playerAction = "run"; }
   } else { charY = 0; wasJump = false; }
 
+  // 🛠️ FIX: Slide करने पर स्केल नहीं होगा, बल्कि मॉडल पीछे की ओर मुड़कर नीचे होगा (असली स्लाइड)
+  let targetRotX = 0;
+  let targetYOffset = 0;
+
   if(playerAction === "slide"){
       if(!wasSlide){ slideTimer = 0; wasSlide = true; }
       slideTimer += dt;
+      targetRotX = -Math.PI / 2.5; // पीछे झुकेगा
+      targetYOffset = -0.3; // थोड़ा नीचे खिसकेगा
       if(slideTimer > 0.65){ playerAction = "run"; wasSlide = false; }
   } else wasSlide = false;
 
-  const tSY = playerAction === "slide" ? 0.4 : 1;
-  const tSX = playerAction === "slide" ? 1.4 : 1;
-  scaleY = lerp(scaleY, tSY, dt * 15);
-  scaleX = lerp(scaleX, tSX, dt * 15);
-  charGroup.scale.set(scaleX, scaleY, 1);
+  if (playerAction === "dead") {
+      targetRotX = -Math.PI / 2; // मरने पर पूरा पीछे गिर जाएगा
+  }
 
-  const jumpStr = playerAction === "jump" ? 1 + Math.abs(yVel) * 0.015 : 1;
-  bodyScaleY = lerp(bodyScaleY, jumpStr, dt * 12);
-  bodyScaleX = lerp(bodyScaleX, 1 / jumpStr, dt * 12);
-  bodyScaleGrp.scale.set(bodyScaleX, bodyScaleY, 1);
-
-  charGroup.position.set(charX, charY, 0);
+  charGroup.rotation.x = lerp(charGroup.rotation.x, targetRotX, dt * 10);
+  charGroup.position.set(charX, charY + targetYOffset, 0); // 🛠️ FIX: दबने वाला कोड हटा दिया!
   charGroup.rotation.z = tiltZ * 0.15;
   blinkTimer += dt;
   charGroup.visible = isInvincible ? Math.sin(blinkTimer * 20) > 0 : true;
-
-  // ANIMATION MIXER
-  if (mixer && state !== "dead") mixer.update(dt); 
-
-  if(playerAction === "run"){
-      charGroup.rotation.x = lerp(charGroup.rotation.x, 0, dt * 10);
-  } else if(playerAction === "dead"){
-      charGroup.rotation.x = lerp(charGroup.rotation.x, -Math.PI * 0.45, dt * 6); 
-  }
 
   // DUST PARTICLES
   dustSpawnT += dt;
