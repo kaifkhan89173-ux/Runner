@@ -152,6 +152,10 @@ renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.BasicShadowMap;
 const scene=new THREE.Scene();
+
+// धुंध (Fog) ऐड कर रहे हैं ताकि शहर दूर से एकदम रियल लगे
+scene.fog = new THREE.FogExp2(0x87CEEB, 0.025);
+
 const camera=new THREE.PerspectiveCamera(62,innerWidth/innerHeight,0.1,220);
 camera.position.set(0,5.8,9);
 function onResize(){renderer.setSize(innerWidth,innerHeight);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
@@ -177,29 +181,115 @@ function cylinder(rT,rB,h,seg,color){return new THREE.Mesh(new THREE.CylinderGeo
 function lerp(a,b,t){return a+(b-a)*t;}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 
+// --- PROCEDURAL TEXTURES (कोड से ही डामर और टाइल्स बनाना) ---
+
+function createRoadTex() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#2a2a2a'; ctx.fillRect(0, 0, 256, 256);
+  for(let i=0; i<4000; i++) { 
+    ctx.fillStyle = Math.random() > 0.5 ? '#3a3a3a' : '#1a1a1a';
+    ctx.fillRect(Math.random()*256, Math.random()*256, 2, 2);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1, 6);
+  return tex;
+}
+
+function createWalkTex() {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#555'; ctx.fillRect(0, 0, 128, 128);
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 4;
+  ctx.strokeRect(0, 0, 64, 64); ctx.strokeRect(64, 64, 64, 64);
+  ctx.fillStyle = '#666'; ctx.fillRect(64, 0, 64, 64); ctx.fillRect(0, 64, 64, 64);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(1, 10);
+  return tex;
+}
+
+function createBldgTex() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#444'; ctx.fillRect(0, 0, 256, 256);
+  for(let x=10; x<256; x+=40) {
+    for(let y=10; y<256; y+=50) {
+      ctx.fillStyle = Math.random() > 0.4 ? '#ffffaa' : '#111'; 
+      ctx.fillRect(x, y, 20, 30);
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2, 2);
+  return tex;
+}
+
+const roadMat = new THREE.MeshLambertMaterial({ map: createRoadTex() });
+const walkMat = new THREE.MeshLambertMaterial({ map: createWalkTex() });
+const bldgTex = createBldgTex(); 
+
 const BCOLORS=[0x1a237e,0x880e4f,0x1b5e20,0x4a148c,0xbf360c,0x006064,0x37474f];
 function makeBldData(seed){
   const rng=n=>{const s=Math.sin(seed*127.1+n*311.7)*43758.5453;return s-Math.floor(s);};
   return Array.from({length:4},(_,i)=>({lx:-6.8-rng(i*7)*1.2,rx:6.8+rng(i*7+1)*1.2,z:-TILE_LEN*0.45+i*(TILE_LEN/4)+rng(i*7+2)*2,lw:1.8+rng(i*7+3)*1.4,rw:1.8+rng(i*7+4)*1.4,lh:3.5+rng(i*7+5)*7,rh:3.5+rng(i*7+6)*7,ld:2.5+rng(i*7+7)*3,rd:2.5+rng(i*7+8)*3,lc:BCOLORS[Math.floor(rng(i*7+9)*BCOLORS.length)],rc:BCOLORS[Math.floor(rng(i*7+10)*BCOLORS.length)],win:rng(i*7+11)>0.35}));
 }
+
 function makeTileMesh(seed){
-  const g=new THREE.Group(),bdata=makeBldData(seed);
-  const road=new THREE.Mesh(new THREE.PlaneGeometry(7,TILE_LEN),new THREE.MeshLambertMaterial({color:0x252525}));
-  road.rotation.x=-Math.PI/2;road.receiveShadow=true;g.add(road);
-  [-1.1,1.1].forEach(x=>{const l=new THREE.Mesh(new THREE.PlaneGeometry(0.1,TILE_LEN),new THREE.MeshLambertMaterial({color:0xf0c030}));l.rotation.x=-Math.PI/2;l.position.set(x,0.01,0);g.add(l);});
-  [-3.4,3.4].forEach(x=>{const l=new THREE.Mesh(new THREE.PlaneGeometry(0.07,TILE_LEN),new THREE.MeshLambertMaterial({color:0xcc2222}));l.rotation.x=-Math.PI/2;l.position.set(x,0.01,0);g.add(l);});
-  [-4.9,4.9].forEach(x=>{const s=new THREE.Mesh(new THREE.PlaneGeometry(3,TILE_LEN),new THREE.MeshLambertMaterial({color:0x7c6d60}));s.rotation.x=-Math.PI/2;s.position.set(x,0.06,0);s.receiveShadow=true;g.add(s);});
-  bdata.forEach(b=>{
-    const lb=box(b.lw,b.lh,b.ld,b.lc);lb.position.set(b.lx,b.lh/2,b.z);g.add(lb);
-    const rb=box(b.rw,b.rh,b.rd,b.rc);rb.position.set(b.rx,b.rh/2,b.z);g.add(rb);
+  const g=new THREE.Group(), bdata=makeBldData(seed);
+  
+  // Real Road
+  const road=new THREE.Mesh(new THREE.PlaneGeometry(7, TILE_LEN), roadMat);
+  road.rotation.x = -Math.PI/2; road.receiveShadow=true; g.add(road);
+  
+  // पीली लाइन्स 
+  [-1.1, 1.1].forEach(x => {
+    const l=new THREE.Mesh(new THREE.PlaneGeometry(0.15, TILE_LEN), new THREE.MeshLambertMaterial({color:0xffcc00, emissive:0x554400}));
+    l.rotation.x = -Math.PI/2; l.position.set(x, 0.02, 0); g.add(l);
+  });
+  
+  // लाल साइड लाइन्स
+  [-3.4, 3.4].forEach(x => {
+    const l=new THREE.Mesh(new THREE.PlaneGeometry(0.1, TILE_LEN), new THREE.MeshLambertMaterial({color:0xcc2222, emissive:0x440000}));
+    l.rotation.x = -Math.PI/2; l.position.set(x, 0.02, 0); g.add(l);
+  });
+  
+  // Footpath
+  [-4.9, 4.9].forEach(x => {
+    const s=new THREE.Mesh(new THREE.PlaneGeometry(3, TILE_LEN), walkMat);
+    s.rotation.x = -Math.PI/2; s.position.set(x, 0.06, 0); s.receiveShadow=true; g.add(s);
+  });
+  
+  bdata.forEach(b => {
+    const bMat = new THREE.MeshLambertMaterial({ map: bldgTex, color: b.lc });
+    const lb = new THREE.Mesh(new THREE.BoxGeometry(b.lw, b.lh, b.ld), bMat);
+    lb.position.set(b.lx, b.lh/2, b.z); lb.castShadow=true; lb.receiveShadow=true; g.add(lb);
+    
+    const rbMat = new THREE.MeshLambertMaterial({ map: bldgTex, color: b.rc });
+    const rb = new THREE.Mesh(new THREE.BoxGeometry(b.rw, b.rh, b.rd), rbMat);
+    rb.position.set(b.rx, b.rh/2, b.z); rb.castShadow=true; rb.receiveShadow=true; g.add(rb);
+    
     if(b.win){
-      const wl=box(b.lw*0.55,b.lh*0.12,0.05,0xffffaa,0xffffaa,0.6);wl.position.set(b.lx,b.lh*0.65,b.z+b.ld/2+0.01);g.add(wl);
-      const wr=box(b.rw*0.55,b.rh*0.12,0.05,0xffffaa,0xffffaa,0.6);wr.position.set(b.rx,b.rh*0.65,b.z+b.rd/2+0.01);g.add(wr);
+      const wl=box(b.lw*0.55, b.lh*0.12, 0.05, 0xffffaa, 0xffffaa, 0.6);
+      wl.position.set(b.lx, b.lh*0.65, b.z + b.ld/2 + 0.01); g.add(wl);
+      const wr=box(b.rw*0.55, b.rh*0.12, 0.05, 0xffffaa, 0xffffaa, 0.6);
+      wr.position.set(b.rx, b.rh*0.65, b.z + b.rd/2 + 0.01); g.add(wr);
     }
   });
-  [-8,0,8].forEach(z=>{[-4.1,4.1].forEach((lx,side)=>{const dir=side===0?-1:1;const pole=cylinder(0.06,0.09,3.2,5,0x777777);pole.position.set(lx,1.6,z);g.add(pole);const arm=box(0.55,0.1,0.1,0x777777);arm.position.set(lx+dir*0.25,3.2,z);g.add(arm);const bulb=box(0.2,0.12,0.2,0xfffde7,0xfffde7,1.2);bulb.position.set(lx+dir*0.48,3.13,z);g.add(bulb);});});
+  
+  // Streetlights
+  [-8, 0, 8].forEach(z => {
+    [-4.1, 4.1].forEach((lx, side) => {
+      const dir = side === 0 ? -1 : 1;
+      const pole = cylinder(0.06, 0.09, 3.2, 5, 0x555555);
+      pole.position.set(lx, 1.6, z); pole.castShadow = true; g.add(pole);
+      const arm = box(0.55, 0.1, 0.1, 0x555555);
+      arm.position.set(lx + dir*0.25, 3.2, z); g.add(arm);
+      const bulb = box(0.2, 0.12, 0.2, 0xfffde7, 0xfffde7, 1.2);
+      bulb.position.set(lx + dir*0.48, 3.13, z); g.add(bulb);
+    });
+  });
   return g;
 }
+
 const tileMeshes=[],tileZs=[];
 for(let i=0;i<TILE_COUNT;i++){const seed=i*999+1337;const m=makeTileMesh(seed);m.position.z=i*-TILE_LEN;tileZs.push(i*-TILE_LEN);tileMeshes.push(m);scene.add(m);}
 let nextSeed=TILE_COUNT*999+1337;
@@ -213,20 +303,18 @@ charGroup.position.set(0, 0, 0);
 
 const characterFiles = [
   { name: "Azri", file: "azri_running_animation.glb", scale: 1.5 },
-  { name: "Anime Hero", file: "Anime_character.glb", scale: 3.5 },   
+  { name: "Anime Hero", file: "Anime_character.glb", scale: 5.0 },   
   { name: "Demon King", file: "demon_king_ani_runing.glb", scale: 1.5 },
-  { name: "Luoli", file: "luoli_run.glb", scale: 0.2 } 
+  { name: "Luoli", file: "luoli_run.glb", scale: 0.3 } 
 ];
 
 let selectedCharIndex = 0;
 let loadedCharacters = new Array(characterFiles.length).fill(null);
 const loader = new THREE.GLTFLoader();
 
-// Load all characters
 characterFiles.forEach((charData, i) => {
     loader.load(charData.file, function(gltf) {
         const model = gltf.scene;
-        // Adjust scale globally, aap scale value uper characterFiles array me badal sakte hain
         model.scale.set(charData.scale, charData.scale, charData.scale);
         model.rotation.y = Math.PI;
         model.traverse(function(node) {
