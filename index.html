@@ -316,7 +316,7 @@ const loader = new THREE.GLTFLoader();
 characterFiles.forEach((charData, i) => {
     loader.load(charData.file, function(gltf) {
         const model = gltf.scene;
-        // Adjust scale globally, aap scale value uper characterFiles array me badal sakte hain
+        // Adjust scale globally
         model.scale.set(charData.scale, charData.scale, charData.scale);
         model.rotation.y = Math.PI;
         model.traverse(function(node) {
@@ -366,7 +366,6 @@ function applyCharacter(index) {
 renderCharMenu();
 // ---------------------------------------------
 
-
 const OBS_TYPES=["barrier","train","box","low_barrier"];
 function makeBarrier(){const g=new THREE.Group();const bar=box(1.6,0.18,0.18,0xffcc00);bar.position.set(0,0.5,0);g.add(bar);[-0.75,0.75].forEach(x=>{const p=box(0.16,0.44,0.16,0xff4400);p.position.set(x,0.22,0);g.add(p);});[-0.4,0,0.4].forEach((x,i)=>{const s=box(0.28,0.17,0.19,i%2===0?0xff4400:0xffcc00);s.position.set(x,0.5,0);g.add(s);});return g;}
 function makeTrain(){const g=new THREE.Group();const body=box(1.9,1.8,3.5,0x3949ab);body.position.set(0,0.9,0);g.add(body);const roof=box(1.7,0.15,3.3,0x1a237e);roof.position.set(0,1.85,0);g.add(roof);[-1,0,1].forEach(dz=>{const w=box(0.05,0.5,0.7,0x80d8ff,0x80d8ff,0.4);w.position.set(0.96,1.05,dz*1.1);g.add(w);});const wheels=box(2.1,0.24,3.6,0x263238);wheels.position.set(0,0.12,0);g.add(wheels);return g;}
@@ -379,7 +378,7 @@ function spawnObs(){const types=["barrier","train","box","low_barrier","barrier"
 
 const coinGeo=new THREE.CylinderGeometry(0.22,0.22,0.08,10);
 const coinMat=new THREE.MeshLambertMaterial({color:0xFFD700,emissive:0xFF8C00,emissiveIntensity:0.5});
-const coinPool=Array.from({length:POOL_COINS},()=>{const m=new Mesh(coinGeo,coinMat);m.rotation.x=Math.PI/2;m.position.y=-999;scene.add(m);return{mesh:m,active:false,lane:0,z:SPAWN_Z,y:0.7,rotSpeed:2};});
+const coinPool=Array.from({length:POOL_COINS},()=>{const m=new THREE.Mesh(coinGeo,coinMat);m.rotation.x=Math.PI/2;m.position.y=-999;scene.add(m);return{mesh:m,active:false,lane:0,z:SPAWN_Z,y:0.7,rotSpeed:2};});
 let spawnTimerCoins=0;
 function spawnCoins(){const lane=Math.floor(Math.random()*3)-1;const count=Math.floor(Math.random()*4)+2;let placed=0;for(let i=0;i<POOL_COINS&&placed<count;i++){if(!coinPool[i].active){coinPool[i].active=true;coinPool[i].lane=lane;coinPool[i].z=SPAWN_Z-placed*2.5;coinPool[i].y=0.45+Math.random()*0.7;coinPool[i].rotSpeed=2+Math.random()*2;placed++;}}}
 
@@ -484,7 +483,9 @@ function die(){
   }, 50); 
   
   playGameOver(); 
-  setTimeout(showGameOver, 800);
+  
+  // NAYA: 1500ms tak ruka rahega taaki break ka animation dikh sake
+  setTimeout(showGameOver, 1500); 
 }
 
 function loseLife(){
@@ -524,49 +525,145 @@ function loop(now){
   renderer.render(scene,camera);
 }
 
+// NAYA: Update game jisme lag fix aur smooth breaking lagai gayi hai
 function updateGame(dt){
-  if(speed<28 && state === "playing")speed+=dt*0.4;
-  if(state === "playing") score+=Math.floor(speed*dt*2);
-  const dist=speed*dt;
   
+  // 1. Smooth Speed Control (लैग/हैंग फिक्स)
+  if(state === "playing") {
+      if(speed < 28) speed += dt * 0.4;
+      score += Math.floor(speed * dt * 2);
+  } else if (state === "dead") {
+      speed = lerp(speed, 0, dt * 8); // झटके से नहीं, स्मूथली ब्रेक लगेगा
+  }
+
+  const dist = speed * dt;
+
+  // 2. Move Background (Road) Always
+  for(let i=0; i<TILE_COUNT; i++){
+      tileZs[i] += dist;
+      tileMeshes[i].position.z = tileZs[i];
+      if(tileZs[i] > TILE_LEN*0.6){
+          const minZ = Math.min(...tileZs);
+          tileZs[i] = minZ - TILE_LEN;
+          tileMeshes[i].position.z = tileZs[i];
+          nextSeed++;
+      }
+  }
+
+  // 3. Spawning Logic (सिर्फ तब जब ज़िंदा हो)
   if (state === "playing") {
-      for(let i=0;i<TILE_COUNT;i++){tileZs[i]+=dist;tileMeshes[i].position.z=tileZs[i];if(tileZs[i]>TILE_LEN*0.6){const minZ=Math.min(...tileZs);tileZs[i]=minZ-TILE_LEN;tileMeshes[i].position.z=tileZs[i];nextSeed++;}}
-      spawnTimerObs+=dt;const spawnInt=Math.max(1.4,3.5-speed*0.055);if(spawnTimerObs>=spawnInt){spawnTimerObs=0;spawnObs();}
-      for(const obs of obsPool){if(!obs.active)continue;obs.z+=speed*dt;obs.grp.position.set(LANE_X[obs.lane+1],0,obs.z);const dx=Math.abs(LANE_X[targetLane+1]-LANE_X[obs.lane+1]),dz=Math.abs(obs.z-CHAR_Z);if(dx<0.88&&dz<1.1&&!isInvincible){let hit=true;if(obs.type==="low_barrier"&&(playerAction==="slide"||playerAction==="jump"))hit=false;if(obs.type==="box"&&playerAction==="jump")hit=false;if(obs.type==="barrier"&&playerAction==="slide")hit=false;if(hit){obs.active=false;obs.grp.position.y=-999;loseLife();}}if(obs.z>DESPAWN_Z){obs.active=false;obs.grp.position.y=-999;}}
-      spawnTimerCoins+=dt;if(spawnTimerCoins>=0.9){spawnTimerCoins=0;spawnCoins();}
-      for(const c of coinPool){if(!c.active)continue;c.z+=speed*dt;c.mesh.position.set(LANE_X[c.lane+1],c.y,c.z);c.mesh.rotation.y+=c.rotSpeed*dt;const dx=Math.abs(LANE_X[targetLane+1]-LANE_X[c.lane+1]),dz=Math.abs(c.z-CHAR_Z);if(dx<1.0&&dz<1.0){c.active=false;c.mesh.position.y=-999;coins++;playCoin();}if(c.z>DESPAWN_Z){c.active=false;c.mesh.position.y=-999;}}
+      spawnTimerObs += dt;
+      const spawnInt = Math.max(1.4, 3.5 - speed * 0.055);
+      if(spawnTimerObs >= spawnInt){ spawnTimerObs = 0; spawnObs(); }
+
+      spawnTimerCoins += dt;
+      if(spawnTimerCoins >= 0.9){ spawnTimerCoins = 0; spawnCoins(); }
   }
 
-  const tX=LANE_X[targetLane+1];charX+=(tX-charX)*Math.min(1,dt*13);if(Math.abs(charX-tX)<0.08)currentLane=targetLane;const laneErr=tX-charX;tiltZ+=(-laneErr*0.35-tiltZ)*dt*10;
-  
-  if(playerAction==="jump"){if(!wasJump){yVel=9.0;wasJump=true;playJump();}yVel-=22*dt;charY+=yVel*dt;if(charY<=0){charY=0;yVel=0;playerAction="run";}}else{charY=0;wasJump=false;}
-  if(playerAction==="slide"){if(!wasSlide){slideTimer=0;wasSlide=true;}slideTimer+=dt;if(slideTimer>0.75){playerAction="run";wasSlide=false;}}else wasSlide=false;
-  
-  const tSY=playerAction==="slide"?0.5:1,tSX=playerAction==="slide"?1.35:1;scaleY=lerp(scaleY,tSY,dt*14);scaleX=lerp(scaleX,tSX,dt*14);charGroup.scale.set(scaleX,scaleY,1);
-  const jumpStr=playerAction==="jump"?1+Math.abs(yVel)*0.012:1;bodyScaleY=lerp(bodyScaleY,jumpStr,dt*12);bodyScaleX=lerp(bodyScaleX,1/jumpStr,dt*12);bodyScaleGrp.scale.set(bodyScaleX,bodyScaleY,1);
-  
-  charGroup.position.set(charX,charY,0);
-  charGroup.rotation.z=tiltZ*0.12;
-  blinkTimer+=dt;
-  charGroup.visible=isInvincible?Math.sin(blinkTimer*18)>0:true;
-  
-  if (mixer) mixer.update(dt);
-
-  if(playerAction==="run"){
-      charGroup.rotation.x = lerp(charGroup.rotation.x, 0, dt*10); 
-  }
-  else if(playerAction==="jump"){
-  }
-  else if(playerAction==="dead"){
-      charGroup.rotation.x = lerp(charGroup.rotation.x, -Math.PI*0.5, dt*5);
+  // 4. Move Obstacles & Collision
+  for(const obs of obsPool){
+      if(!obs.active) continue;
+      obs.z += dist;
+      obs.grp.position.set(LANE_X[obs.lane+1], 0, obs.z);
+      
+      if (state === "playing") {
+          const dx = Math.abs(LANE_X[targetLane+1] - LANE_X[obs.lane+1]);
+          const dz = Math.abs(obs.z - CHAR_Z);
+          if(dx < 0.88 && dz < 1.1 && !isInvincible){
+              let hit = true;
+              if(obs.type === "low_barrier" && (playerAction === "slide" || playerAction === "jump")) hit = false;
+              if(obs.type === "box" && playerAction === "jump") hit = false;
+              if(obs.type === "barrier" && playerAction === "slide") hit = false;
+              if(hit) { obs.active = false; obs.grp.position.y = -999; loseLife(); }
+          }
+      }
+      if(obs.z > DESPAWN_Z){ obs.active = false; obs.grp.position.y = -999; }
   }
 
-  dustSpawnT+=dt;if(dustSpawnT>=0.06&&playerAction==="run"){dustSpawnT=0;dustParticles.push({x:charX+(Math.random()-.5)*.4,y:.05,z:.2,vx:(Math.random()-.5)*1.5,vy:Math.random()*.5+.1,vz:Math.random()*2+1,life:0,maxLife:.4+Math.random()*.2,size:.05+Math.random()*.1});}
-  for(const p of dustParticles){p.life+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.z+=p.vz*dt;p.vy-=.5*dt;}
-  dustParticles.splice(0,dustParticles.length,...dustParticles.filter(p=>p.life<p.maxLife));
-  const active=dustParticles.slice(0,PDUST);
-  for(let i=0;i<PDUST;i++){const p=active[i];if(p){pPositions[i*3]=p.x;pPositions[i*3+1]=p.y;pPositions[i*3+2]=p.z;pSizes[i]=p.size*(1-p.life/p.maxLife);}else{pPositions[i*3]=0;pPositions[i*3+1]=-100;pPositions[i*3+2]=0;pSizes[i]=0;}}
-  dustGeo.attributes.position.needsUpdate=true;dustGeo.attributes.size.needsUpdate=true;
+  // 5. Move Coins & Collision
+  for(const c of coinPool){
+      if(!c.active) continue;
+      c.z += dist;
+      c.mesh.position.set(LANE_X[c.lane+1], c.y, c.z);
+      c.mesh.rotation.y += c.rotSpeed * dt;
+      
+      if (state === "playing") {
+          const dx = Math.abs(LANE_X[targetLane+1] - LANE_X[c.lane+1]);
+          const dz = Math.abs(c.z - CHAR_Z);
+          if(dx < 1.0 && dz < 1.0){ c.active = false; c.mesh.position.y = -999; coins++; playCoin(); }
+      }
+      if(c.z > DESPAWN_Z){ c.active = false; c.mesh.position.y = -999; }
+  }
+
+  // 6. Character Physics & Movement
+  const tX = LANE_X[targetLane+1];
+  charX += (tX - charX) * Math.min(1, dt * 13);
+  if(Math.abs(charX - tX) < 0.08) currentLane = targetLane;
+  const laneErr = tX - charX;
+  tiltZ += (-laneErr * 0.35 - tiltZ) * dt * 10;
+
+  if(playerAction === "jump"){
+      if(!wasJump){ yVel = 9.0; wasJump = true; playJump(); }
+      yVel -= 22 * dt;
+      charY += yVel * dt;
+      if(charY <= 0){ charY = 0; yVel = 0; playerAction = "run"; }
+  } else { charY = 0; wasJump = false; }
+
+  if(playerAction === "slide"){
+      if(!wasSlide){ slideTimer = 0; wasSlide = true; }
+      slideTimer += dt;
+      if(slideTimer > 0.75){ playerAction = "run"; wasSlide = false; }
+  } else wasSlide = false;
+
+  const tSY = playerAction === "slide" ? 0.5 : 1;
+  const tSX = playerAction === "slide" ? 1.35 : 1;
+  scaleY = lerp(scaleY, tSY, dt * 14);
+  scaleX = lerp(scaleX, tSX, dt * 14);
+  charGroup.scale.set(scaleX, scaleY, 1);
+
+  const jumpStr = playerAction === "jump" ? 1 + Math.abs(yVel) * 0.012 : 1;
+  bodyScaleY = lerp(bodyScaleY, jumpStr, dt * 12);
+  bodyScaleX = lerp(bodyScaleX, 1 / jumpStr, dt * 12);
+  bodyScaleGrp.scale.set(bodyScaleX, bodyScaleY, 1);
+
+  charGroup.position.set(charX, charY, 0);
+  charGroup.rotation.z = tiltZ * 0.12;
+  blinkTimer += dt;
+  charGroup.visible = isInvincible ? Math.sin(blinkTimer * 18) > 0 : true;
+
+  // 7. Animations (मरने पर दौड़ना बंद हो जाएगा)
+  if (mixer && state !== "dead") mixer.update(dt); 
+
+  if(playerAction === "run"){
+      charGroup.rotation.x = lerp(charGroup.rotation.x, 0, dt * 10);
+  } else if(playerAction === "dead"){
+      charGroup.rotation.x = lerp(charGroup.rotation.x, -Math.PI * 0.5, dt * 5); // पीछे गिरेगा
+  }
+
+  // 8. Dust Particles (मरने के बाद धूल उड़ना बंद)
+  dustSpawnT += dt;
+  if(dustSpawnT >= 0.06 && playerAction === "run" && state === "playing"){
+      dustSpawnT = 0;
+      dustParticles.push({
+          x: charX + (Math.random() - .5) * .4, y: .05, z: .2,
+          vx: (Math.random() - .5) * 1.5, vy: Math.random() * .5 + .1, vz: Math.random() * 2 + 1,
+          life: 0, maxLife: .4 + Math.random() * .2, size: .05 + Math.random() * .1
+      });
+  }
+  for(const p of dustParticles){ p.life += dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vy -= .5 * dt; }
+  dustParticles.splice(0, dustParticles.length, ...dustParticles.filter(p => p.life < p.maxLife));
+  const active = dustParticles.slice(0, PDUST);
+  for(let i=0; i<PDUST; i++){
+      const p = active[i];
+      if(p){
+          pPositions[i*3] = p.x; pPositions[i*3+1] = p.y; pPositions[i*3+2] = p.z;
+          pSizes[i] = p.size * (1 - p.life / p.maxLife);
+      } else {
+          pPositions[i*3] = 0; pPositions[i*3+1] = -100; pPositions[i*3+2] = 0; pSizes[i] = 0;
+      }
+  }
+  dustGeo.attributes.position.needsUpdate = true;
+  dustGeo.attributes.size.needsUpdate = true;
 }
 
 showMenu();
