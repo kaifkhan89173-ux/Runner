@@ -303,18 +303,20 @@ charGroup.position.set(0, 0, 0);
 
 const characterFiles = [
   { name: "Azri", file: "azri_running_animation.glb", scale: 1.5 },
-  { name: "Anime Hero", file: "Anime_character.glb", scale: 5.0 },   
+  { name: "Anime Hero", file: "Anime_character.glb", scale: 3.5 },   
   { name: "Demon King", file: "demon_king_ani_runing.glb", scale: 1.5 },
-  { name: "Luoli", file: "luoli_run.glb", scale: 0.3 } 
+  { name: "Luoli", file: "luoli_run.glb", scale: 0.2 } 
 ];
 
 let selectedCharIndex = 0;
 let loadedCharacters = new Array(characterFiles.length).fill(null);
 const loader = new THREE.GLTFLoader();
 
+// Load all characters
 characterFiles.forEach((charData, i) => {
     loader.load(charData.file, function(gltf) {
         const model = gltf.scene;
+        // Adjust scale globally, aap scale value uper characterFiles array me badal sakte hain
         model.scale.set(charData.scale, charData.scale, charData.scale);
         model.rotation.y = Math.PI;
         model.traverse(function(node) {
@@ -377,7 +379,7 @@ function spawnObs(){const types=["barrier","train","box","low_barrier","barrier"
 
 const coinGeo=new THREE.CylinderGeometry(0.22,0.22,0.08,10);
 const coinMat=new THREE.MeshLambertMaterial({color:0xFFD700,emissive:0xFF8C00,emissiveIntensity:0.5});
-const coinPool=Array.from({length:POOL_COINS},()=>{const m=new THREE.Mesh(coinGeo,coinMat);m.rotation.x=Math.PI/2;m.position.y=-999;scene.add(m);return{mesh:m,active:false,lane:0,z:SPAWN_Z,y:0.7,rotSpeed:2};});
+const coinPool=Array.from({length:POOL_COINS},()=>{const m=new Mesh(coinGeo,coinMat);m.rotation.x=Math.PI/2;m.position.y=-999;scene.add(m);return{mesh:m,active:false,lane:0,z:SPAWN_Z,y:0.7,rotSpeed:2};});
 let spawnTimerCoins=0;
 function spawnCoins(){const lane=Math.floor(Math.random()*3)-1;const count=Math.floor(Math.random()*4)+2;let placed=0;for(let i=0;i<POOL_COINS&&placed<count;i++){if(!coinPool[i].active){coinPool[i].active=true;coinPool[i].lane=lane;coinPool[i].z=SPAWN_Z-placed*2.5;coinPool[i].y=0.45+Math.random()*0.7;coinPool[i].rotSpeed=2+Math.random()*2;placed++;}}}
 
