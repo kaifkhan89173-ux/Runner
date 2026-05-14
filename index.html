@@ -91,6 +91,7 @@ canvas{display:block;width:100vw;height:100vh}
   
   <div class="input-wrap"><span>👤</span><input id="name-input" maxlength="16" placeholder="Enter your name…"/></div>
 
+  <!-- Character Selection Menu -->
   <div class="char-title">Select Hero</div>
   <div class="char-grid" id="char-grid"></div>
 
@@ -304,10 +305,10 @@ let charActions = {}; // Animations store karne ke liye
 let activeAction = null;
 
 const characterFiles = [
-  { name: "Slider Hero", file: "running_slide (1).glb", scale: 1.5 }, // UPDATED DEFAULT CHARACTER
   { name: "Azri", file: "azri_running_animation.glb", scale: 1.5 },
   { name: "Anime Hero", file: "Anime_character.glb", scale: 3.5 },   
-  { name: "Demon King", file: "demon_king_ani_runing.glb", scale: 0.05 }
+  { name: "Demon King", file: "demon_king_ani_runing.glb", scale: 0.05 },
+  { name: "Luoli", file: "luoli_run.glb", scale: 0.015 } 
 ];
 
 let selectedCharIndex = 0;
@@ -384,18 +385,18 @@ function switchAnimation(animName) {
     if(!mixer || !charActions[animName] || activeAction === charActions[animName]) return;
     let prevAction = activeAction;
     activeAction = charActions[animName];
-    activeAction.reset().fadeIn(0.2).play(); // Added smooth fade
-    prevAction.fadeOut(0.2);
+    activeAction.reset().play();
+    prevAction.crossFadeTo(activeAction, 0.2, true);
 }
 
 renderCharMenu();
 
 // --- OBSTACLES & COINS ---
 const OBS_TYPES=["barrier","train","box","low_barrier"];
-function makeBarrier(){const g=new THREE.Group();const bar=box(1.6,0.25,0.25,0xffcc00);bar.position.set(0,0.6,0);g.add(bar);[-0.75,0.75].forEach(x=>{const p=box(0.2,0.5,0.2,0xff4400);p.position.set(x,0.25,0);g.add(p);});return g;}
-function makeTrain(){const g=new THREE.Group();const body=box(2.0,2.0,4.0,0x283593);body.position.set(0,1.0,0);g.add(body);return g;}
-function makeBox(){const g=new THREE.Group();const crate=box(1.0,1.0,1.0,0x6d4c41);crate.position.set(0,0.5,0);g.add(crate);return g;}
-function makeLowBarrier(){const g=new THREE.Group();const b=box(1.8,0.4,0.6,0xd32f2f);b.position.set(0,0.2,0);g.add(b);return g;}
+function makeBarrier(){const g=new THREE.Group();const bar=box(1.6,0.25,0.25,0xffcc00);bar.position.set(0,0.6,0);g.add(bar);[-0.75,0.75].forEach(x=>{const p=box(0.2,0.5,0.2,0xff4400);p.position.set(x,0.25,0);g.add(p);});[-0.4,0,0.4].forEach((x,i)=>{const s=box(0.3,0.2,0.25,i%2===0?0xff4400:0xffcc00);s.position.set(x,0.6,0);g.add(s);});return g;}
+function makeTrain(){const g=new THREE.Group();const body=box(2.0,2.0,4.0,0x283593);body.position.set(0,1.0,0);g.add(body);const roof=box(1.8,0.2,3.8,0x1a237e);roof.position.set(0,2.1,0);g.add(roof);[-1,0,1].forEach(dz=>{const w=box(0.05,0.6,0.8,0x80d8ff,0x80d8ff,0.5);w.position.set(1.0,1.2,dz*1.2);g.add(w);});const wheels=box(2.2,0.3,4.1,0x111111);wheels.position.set(0,0.15,0);g.add(wheels);return g;}
+function makeBox(){const g=new THREE.Group();const crate=box(1.0,1.0,1.0,0x6d4c41);crate.position.set(0,0.5,0);g.add(crate);[box(1.0,0.1,0.05,0x4e342e),box(0.1,1.0,0.05,0x4e342e)].forEach(p=>{p.position.set(0,0.5,0.51);g.add(p);});return g;}
+function makeLowBarrier(){const g=new THREE.Group();const b=box(1.8,0.4,0.6,0xd32f2f);b.position.set(0,0.2,0);g.add(b);const t=box(1.8,0.1,0.6,0xfbc02d);t.position.set(0,0.45,0);g.add(t);return g;}
 const MAKERS={barrier:makeBarrier,train:makeTrain,box:makeBox,low_barrier:makeLowBarrier};
 
 const obsPool=Array.from({length:POOL_OBS},(_,i)=>{const type=OBS_TYPES[i%OBS_TYPES.length];const grp=MAKERS[type]();grp.position.y=-999;scene.add(grp);return{grp,type,active:false,lane:0,z:SPAWN_Z};});
@@ -406,6 +407,11 @@ function spawnObs(){
     const slot=obsPool.find(o=>!o.active&&o.type===type) || obsPool.find(o=>!o.active);
     if(!slot)return;
     slot.active=true; slot.type=type; slot.lane=lane; slot.z=SPAWN_Z;
+    if(Math.random()<0.3 && type!=="train"){
+        const ol=lane===0?(Math.random()>.5?-1:1):0;
+        const s2=obsPool.find(o=>!o.active&&o.type===type);
+        if(s2){s2.active=true; s2.type=type; s2.lane=ol; s2.z=SPAWN_Z;}
+    }
 }
 
 const coinGeo=new THREE.CylinderGeometry(0.25,0.25,0.08,12);
@@ -475,7 +481,9 @@ function updateHUD(){
 const dummyScores = [
   {name: "Abrar Ali", score: 62000, coins: 550},
   {name: "Kashif Pathan", score: 55000, coins: 450},
-  {name: "Akram Bhai", score: 38500, coins: 280}
+  {name: "Akram Bhai", score: 38500, coins: 280},
+  {name: "Samrat", score: 31000, coins: 210},
+  {name: "Khushi", score: 25000, coins: 150}
 ];
 
 function getScores(){
@@ -487,14 +495,18 @@ function saveScores(s){try{localStorage.setItem("crScores",JSON.stringify(s));}c
 function renderLeaderboard(elId){
     const scores=getScores(),el=document.getElementById(elId);
     el.innerHTML=`<div class="lb-title">🏆 LEGENDS LEAGUE</div>`;
+    if(!scores.length) return;
+    const medals=["🥇","🥈","🥉"];
     scores.forEach((s,i)=>{
-        el.innerHTML+=`<div class="lb-row"><div class="lb-rank">${i+1}</div><div style="flex:1"><div class="lb-name">${s.name}</div></div><div class="lb-score">${s.score.toLocaleString()}</div></div>`;
+        el.innerHTML+=`<div class="lb-row ${i<3?"top":""}"><div class="lb-rank" style="font-size:${i<3?18:14}px">${medals[i]||"#"+(i+1)}</div><div style="flex:1;min-width:0"><div class="lb-name">${s.name}</div><div class="lb-coins">● ${s.coins} coins</div></div><div class="lb-score" style="color:${i===0?"#FF8C00":"#fff"}">${s.score.toLocaleString()}</div></div>`;
     });
 }
 
 window.saveScoreBtn=function(){
   const nm=document.getElementById("save-name").value.trim()||"Unknown Hero";
+  try{localStorage.setItem("crName",nm);}catch(e){}
   const arr=getScores();
+  if(arr === dummyScores) arr.length = 0; 
   arr.push({name:nm,score,coins});
   arr.sort((a,b)=>b.score-a.score);
   saveScores(arr.slice(0,10));
@@ -508,7 +520,7 @@ function showMenu(){
     document.getElementById("over-screen").style.display="none";
     document.getElementById("hud").style.display="none";
     document.getElementById("name-input").value=playerName;
-    document.getElementById("best-start").textContent=bestScore?"PB: "+bestScore.toLocaleString():"";
+    document.getElementById("best-start").textContent=bestScore?"PERSONAL BEST: "+bestScore.toLocaleString():"";
     renderLeaderboard("lb-start");
 }
 
@@ -517,26 +529,46 @@ function showGameOver(){
   document.getElementById("over-screen").style.display="flex"; 
   document.getElementById("final-score").textContent=score.toLocaleString();
   document.getElementById("final-coins").textContent="● "+coins;
+  document.getElementById("best-over").textContent="BEST: "+bestScore.toLocaleString();
+  document.getElementById("save-name").value=playerName;
+  document.getElementById("save-wrap").style.display="";
+  document.getElementById("saved-msg").style.display="none";
   renderLeaderboard("lb-over");
 }
 
 window.startGame=function(){
-  state="playing"; score=0; coins=0; lives=3; speed=14; targetLane=0;
-  playerAction="run"; isInvincible=false; charX=0; charY=0; yVel=0;
-  slideTimer=0; wasJump=false; wasSlide=false; spawnTimerObs=0; spawnTimerCoins=0;
+  playerName=document.getElementById("name-input").value.trim();
+  try{localStorage.setItem("crName",playerName);}catch(e){}
+  state="playing"; score=0; coins=0; lives=3; speed=14; targetLane=0; currentLane=0;
+  playerAction="run"; isInvincible=false; charX=0; charY=0; yVel=0; tiltZ=0;
+  slideTimer=0; animT=0; blinkTimer=0; 
+  wasJump=false; wasSlide=false; spawnTimerObs=0; spawnTimerCoins=0;
+  
   obsPool.forEach(o=>{o.active=false;o.grp.position.y=-999;});
   coinPool.forEach(c=>{c.active=false;c.mesh.position.y=-999;});
-  charGroup.rotation.x = 0; charGroup.scale.y = 1;
+  dustParticles.length=0;
+  
+  for(let i=0;i<TILE_COUNT;i++){tileZs[i]=i*-TILE_LEN;tileMeshes[i].position.z=tileZs[i];}
+  nextSeed=TILE_COUNT*999+1337;
+  charGroup.rotation.x = 0; 
+  charGroup.scale.y = 1;
+  
   document.getElementById("start-screen").style.display="none";
   document.getElementById("over-screen").style.display="none";
   document.getElementById("hud").style.display="block";
 };
 
-window.restartGame=()=>location.reload();
+window.restartGame=function(){
+    document.getElementById("over-screen").style.display="none";
+    startGame();
+};
 
 function die(){
   state="dead";
-  if (score > bestScore) { bestScore = score; localStorage.setItem("crBest", bestScore); }
+  if (score > bestScore) {
+      bestScore = score;
+      try { localStorage.setItem("crBest", bestScore); } catch(e) {}
+  }
   playGameOver(); 
   setTimeout(showGameOver, 1500); 
 }
@@ -545,8 +577,12 @@ function loseLife(){
   if(isInvincible) return;
   playHit();
   lives--;
-  if(lives<=0){ lives=0; playerAction="dead"; die(); }
-  else { isInvincible=true; setTimeout(()=>isInvincible=false, 2000); }
+  if(lives<=0){
+    lives=0; playerAction="dead"; die();
+  }else{
+    isInvincible=true;
+    setTimeout(()=>isInvincible=false, 2000);
+  }
 }
 
 // --- MAIN LOOP ---
@@ -564,28 +600,42 @@ function loop(now){
     if(state==="playing") updateHUD();
   }
 
+  const targetCamZ = state==="playing" ? 9 + (speed-14)*0.1 : 9;
   camera.position.x = lerp(camera.position.x, charX*0.3, delta*3);
+  camera.position.y = lerp(camera.position.y, 5.5 + Math.max(0, charY*0.2), delta*6);
+  camera.position.z = lerp(camera.position.z, targetCamZ, delta*4);
   camera.lookAt(charX*0.1, 1.5, -5);
   
   renderer.render(scene,camera);
 }
 
 function updateGame(dt){
-  if(state === "playing") { speed += dt * 0.45; score += Math.floor(speed * dt * 2.5); }
+  
+  if(state === "playing") {
+      if(speed < 32) speed += dt * 0.45;
+      score += Math.floor(speed * dt * 2.5);
+  } else if (state === "dead") {
+      speed = lerp(speed, 0, dt * 7); 
+  }
+
   const dist = speed * dt;
 
   for(let i=0; i<TILE_COUNT; i++){
       tileZs[i] += dist;
       tileMeshes[i].position.z = tileZs[i];
       if(tileZs[i] > TILE_LEN*0.6){
-          tileZs[i] = Math.min(...tileZs) - TILE_LEN;
+          const minZ = Math.min(...tileZs);
+          tileZs[i] = minZ - TILE_LEN;
           tileMeshes[i].position.z = tileZs[i];
+          nextSeed++;
       }
   }
 
   if (state === "playing") {
       spawnTimerObs += dt;
-      if(spawnTimerObs >= 1.5){ spawnTimerObs = 0; spawnObs(); }
+      const spawnInt = Math.max(1.2, 3.2 - speed * 0.05);
+      if(spawnTimerObs >= spawnInt){ spawnTimerObs = 0; spawnObs(); }
+
       spawnTimerCoins += dt;
       if(spawnTimerCoins >= 0.8){ spawnTimerCoins = 0; spawnCoins(); }
   }
@@ -601,6 +651,7 @@ function updateGame(dt){
           if(dx < 0.85 && dz < 1.2 && !isInvincible){
               let hit = true;
               if(obs.type === "low_barrier" && (playerAction === "slide" || playerAction === "jump")) hit = false;
+              if(obs.type === "box" && playerAction === "jump") hit = false;
               if(obs.type === "barrier" && playerAction === "slide") hit = false;
               if(hit) { obs.active = false; obs.grp.position.y = -999; loseLife(); }
           }
@@ -622,41 +673,60 @@ function updateGame(dt){
       if(c.z > DESPAWN_Z){ c.active = false; c.mesh.position.y = -999; }
   }
 
-  charX += (LANE_X[targetLane+1] - charX) * Math.min(1, dt * 15);
+  // CHARACTER PHYSICS
+  const tX = LANE_X[targetLane+1];
+  charX += (tX - charX) * Math.min(1, dt * 15);
+  if(Math.abs(charX - tX) < 0.05) currentLane = targetLane;
+  const laneErr = tX - charX;
+  tiltZ += (-laneErr * 0.4 - tiltZ) * dt * 12;
 
   // Jump Logic
   if(playerAction === "jump"){
       if(!wasJump){ 
           yVel = 10.0; wasJump = true; playJump(); 
-          switchAnimation("jump"); 
+          switchAnimation("jump"); // Asli jump animation chalao agar hai toh
       }
       yVel -= 25 * dt;
       charY += yVel * dt;
       if(charY <= 0){ 
           charY = 0; yVel = 0; playerAction = "run"; 
-          switchAnimation("run"); 
+          switchAnimation("run"); // Wapas run animation par aao
       }
   } else { charY = 0; wasJump = false; }
 
-  // Slide Logic (LINKED TO NEW ANIMATION)
-  let targetScaleY = 1;
+  // Slide Logic
+  let targetRotX = 0;
+  let targetScaleY = 1; // Default height
+
   if(playerAction === "slide"){
       if(!wasSlide){ 
           slideTimer = 0; wasSlide = true; 
-          switchAnimation("slide"); 
+          switchAnimation("slide"); // Asli slide animation chalao agar hai toh
       }
       slideTimer += dt;
-      if(!charActions.slide) targetScaleY = 0.4; // Fallback squat
-      if(slideTimer > 0.8){ 
+      
+      // Agar 3D model me "slide" animation nahi hai, toh character ko pichhe girane 
+      // ke bajaye uski height aadhi kar do (Squat effect) taaki obstacle bach jaye.
+      if(!charActions.slide) {
+          targetScaleY = 0.4; 
+      }
+
+      if(slideTimer > 0.65){ 
           playerAction = "run"; wasSlide = false; 
-          switchAnimation("run"); 
+          switchAnimation("run");
       }
   } else wasSlide = false;
 
-  if (playerAction === "dead") charGroup.rotation.x = -Math.PI / 2;
+  // Marne par pichhe girega
+  if (playerAction === "dead") {
+      targetRotX = -Math.PI / 2;
+  }
 
-  charGroup.scale.y = lerp(charGroup.scale.y, targetScaleY, dt * 15);
+  // Smooth rotation aur squishing apply karo
+  charGroup.rotation.x = lerp(charGroup.rotation.x, targetRotX, dt * 10);
+  charGroup.scale.y = lerp(charGroup.scale.y, targetScaleY, dt * 15); // Height kam/zyada karne ke liye
   charGroup.position.set(charX, charY, 0); 
+  charGroup.rotation.z = tiltZ * 0.15;
   blinkTimer += dt;
   charGroup.visible = isInvincible ? Math.sin(blinkTimer * 20) > 0 : true;
 
